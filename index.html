@@ -115,7 +115,7 @@
 <body>
   <main>
     <h1>Task Tracker</h1>
-    <p class="lead">Add a task, check it off, or remove it.</p>
+    <p class="lead">Add a task, check it off, or remove it. Tasks stay in this browser.</p>
     <form id="task-form">
       <input id="task-input" type="text" name="title" placeholder="New task" autocomplete="off" required>
       <button class="add" type="submit">Add</button>
@@ -123,12 +123,14 @@
     <ul id="task-list" aria-label="Tasks"></ul>
   </main>
   <script>
+    const STORAGE_KEY = "task-tracker.tasks";
+
     const form = document.getElementById("task-form");
     const input = document.getElementById("task-input");
     const list = document.getElementById("task-list");
 
-    const tasks = [];
-    let nextId = 1;
+    const tasks = loadTasks();
+    let nextId = tasks.reduce((max, task) => Math.max(max, task.id), 0) + 1;
 
     form.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -136,23 +138,53 @@
       if (!title) return;
       tasks.push({ id: nextId++, title, done: false });
       input.value = "";
+      persist();
       render();
       input.focus();
     });
+
+    function isTask(item) {
+      return Boolean(item)
+        && Number.isInteger(item.id)
+        && item.id > 0
+        && typeof item.title === "string"
+        && item.title.trim() !== ""
+        && typeof item.done === "boolean";
+    }
+
+    function loadTasks() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter(isTask).map((item) => ({
+          id: item.id,
+          title: item.title,
+          done: item.done,
+        }));
+      } catch {
+        return [];
+      }
+    }
+
+    function persist() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    }
 
     function toggleTask(id) {
       const task = tasks.find((item) => item.id === id);
       if (!task) return;
       task.done = !task.done;
+      persist();
       render();
     }
 
     function deleteTask(id) {
-      // BUG: deletes wrong task
       const index = tasks.findIndex((item) => item.id === id);
       if (index === -1) return;
-      const wrongIndex = (index + 1) % tasks.length;
-      tasks.splice(wrongIndex, 1);
+      tasks.splice(index, 1);
+      persist();
       render();
     }
 
